@@ -1,8 +1,7 @@
 ---
-
 # Loom Video Downloader
 
-Loom Video Downloader is a simple Node.js command-line tool to download videos from loom.com. It retrieves the video download link based on the video ID in the URL and saves the video with a specified filename or, by default, the video ID.
+Loom Video Downloader is a simple Node.js command-line tool to download videos from loom.com. It retrieves the video download link based on the video ID in the URL and saves the video with a specified filename, a prefix for multiple files, or by default, the video ID.
 
 ## Getting Started
 
@@ -24,7 +23,9 @@ This tool uses the following npm packages:
 
 ## Usage
 
-To download a video from loom.com, run the following command, replacing the URL with the URL of the video you want to download:
+### Download a Single Video
+
+To download a single video from loom.com, run the following command, replacing `[VideoId]` with the actual video ID from the URL:
 
 ```
 node download.js --url https://www.loom.com/share/[VideoId]
@@ -35,10 +36,28 @@ This will download the video and save it as `[VideoId].mp4`.
 You can specify a different output filename with the `--out` or `-o` option:
 
 ```
-node download.js --url https://www.loom.com/share/[VideoId] --out [FileName].mp4
+node download.js --url https://www.loom.com/share/[VideoId] --out [FileName].mp4 or node download.js --url https://www.loom.com/share/[VideoId] --out path/to/[FileName].mp4
 ```
 
 This will download the video and save it as `[FileName].mp4`.
+
+### Download Multiple Videos
+
+To download multiple videos listed in a text file, use the `--list` option. Create a text file with one video URL per line and pass the file path to the script:
+
+```
+node download.js --list path/to/urls.txt
+```
+
+By default, each video will be saved with its video ID as the filename.
+
+You can specify a filename prefix with the `--prefix` option. The script will append an auto-incrementing number to each downloaded video:
+
+```
+node download.js --list path/to/urls.txt --prefix download --out path/to/output
+```
+
+This will save the videos with the specified prefix "download" and an incremented number in the given output directory. download-1.mp4 download-2.mp4
 
 ## Contributing
 
