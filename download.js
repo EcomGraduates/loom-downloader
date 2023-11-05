@@ -25,12 +25,13 @@ const fetchLoomDownloadUrl = async (id) => {
 
 const downloadLoomVideo = (url, filename) => {
   const file = fs.createWriteStream(filename);
-  const request = https.get(url, function(response) {
+  https.get(url, function(response) {
     response.pipe(file);
   });
 };
 
-const extractId = (url) => {
+const extractId = (url) => { 
+  url = url.split('?')[0];
   return url.split('/').pop();
 };
 
