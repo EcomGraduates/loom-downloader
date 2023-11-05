@@ -26,12 +26,20 @@ const argv = yargs(hideBin(process.argv))
     type: 'string',
     description: 'Path to output the file to or directory to output files when using --list'
   })
+  .option('timeout', {
+    alias: 't',
+    type: 'number',
+    description: 'Timeout in milliseconds to wait between downloads when using --list'
+  })
   .check((argv) => {
     if (!argv.url && !argv.list) {
       throw new Error('Please provide either a single video URL with --url or a list of URLs with --list to proceed');
     }
     if (argv.url && argv.list) {
       throw new Error('Please provide either --url or --list, not both');
+    }
+    if (argv.timeout && argv.timeout < 0) {
+      throw new Error('Please provide a non-negative number for --timeout');
     }
     return true;
   })
@@ -56,6 +64,10 @@ const extractId = (url) => {
   return url.split('/').pop();
 };
 
+const delay = (duration) => {
+  return new Promise(resolve => setTimeout(resolve, duration));
+};
+
 const downloadFromList = async () => {
   const filePath = path.resolve(argv.list);
   const fileContent = fs.readFileSync(filePath, 'utf8');
@@ -74,6 +86,10 @@ const downloadFromList = async () => {
       }
       console.log(`Downloading video ${id} and saving to ${filename}`);
       downloadLoomVideo(url, filename);
+      if (argv.timeout) {
+        console.log(`Waiting for ${argv.timeout} milliseconds before the next download...`);
+        await delay(argv.timeout);
+      }
     }
   }
 };
