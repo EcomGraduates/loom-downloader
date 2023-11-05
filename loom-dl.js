@@ -1,9 +1,10 @@
-const axios = require('axios');
-const fs = require('fs');
-const https = require('https');
-const yargs = require('yargs/yargs');
-const { hideBin } = require('yargs/helpers');
-const path = require('path');
+#!/usr/bin/env node
+import axios from 'axios';
+import fs from 'fs';
+import https from 'https';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+import path from 'path';
 
 const argv = yargs(hideBin(process.argv))
   .option('url', {
