@@ -59,6 +59,16 @@ node download.js --list path/to/urls.txt --prefix download --out path/to/output
 
 This will save the videos with the specified prefix "download" and an incremented number in the given output directory. download-1.mp4 download-2.mp4
 
+### Avoid rate limiting
+
+To prevent getting firewalled or rate-limited, a timeout can be set between downloads using the `--timeout` option:
+
+```
+node download.js --list path/to/urls.txt --prefix download --out path/to/output --timeout 5000
+```
+
+This will add a 5-second wait time between each download. adjust as needed.
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
