@@ -28,7 +28,7 @@ This tool uses the following npm packages:
 To download a single video from loom.com, run the following command, replacing `[VideoId]` with the actual video ID from the URL:
 
 ```
-node download.js --url https://www.loom.com/share/[VideoId]
+node loom-dl.js --url https://www.loom.com/share/[VideoId]
 ```
 
 This will download the video and save it as `[VideoId].mp4`.
@@ -36,7 +36,7 @@ This will download the video and save it as `[VideoId].mp4`.
 You can specify a different output filename with the `--out` or `-o` option:
 
 ```
-node download.js --url https://www.loom.com/share/[VideoId] --out [FileName].mp4 or node download.js --url https://www.loom.com/share/[VideoId] --out path/to/[FileName].mp4
+node loom-dl.js --url https://www.loom.com/share/[VideoId] --out [FileName].mp4 or node loom-dl.js --url https://www.loom.com/share/[VideoId] --out path/to/[FileName].mp4
 ```
 
 This will download the video and save it as `[FileName].mp4`.
@@ -46,7 +46,7 @@ This will download the video and save it as `[FileName].mp4`.
 To download multiple videos listed in a text file, use the `--list` option. Create a text file with one video URL per line and pass the file path to the script:
 
 ```
-node download.js --list path/to/urls.txt
+node loom-dl.js --list path/to/urls.txt
 ```
 
 By default, each video will be saved with its video ID as the filename.
@@ -54,7 +54,7 @@ By default, each video will be saved with its video ID as the filename.
 You can specify a filename prefix with the `--prefix` option. The script will append an auto-incrementing number to each downloaded video:
 
 ```
-node download.js --list path/to/urls.txt --prefix download --out path/to/output
+node loom-dl.js --list path/to/urls.txt --prefix download --out path/to/output
 ```
 
 This will save the videos with the specified prefix "download" and an incremented number in the given output directory. download-1.mp4 download-2.mp4
@@ -64,10 +64,22 @@ This will save the videos with the specified prefix "download" and an incremente
 To prevent getting firewalled or rate-limited, a timeout can be set between downloads using the `--timeout` option:
 
 ```
-node download.js --list path/to/urls.txt --prefix download --out path/to/output --timeout 5000
+node loom-dl.js --list path/to/urls.txt --prefix download --out path/to/output --timeout 5000
 ```
 
 This will add a 5-second wait time between each download. adjust as needed.
+
+### installing via NPM
+
+run npm install loom-dl in terminal
+
+```
+npm i loom-dl
+```
+
+### use command loom-dl
+
+follow the same commands as above but replace node loom-dl.js with loom-dl
 
 ## Contributing
 
