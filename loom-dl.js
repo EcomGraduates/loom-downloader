@@ -5,6 +5,12 @@ import https from 'https';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const argv = yargs(hideBin(process.argv))
   .option('url', {
@@ -54,11 +60,21 @@ const fetchLoomDownloadUrl = async (id) => {
 };
 
 const downloadLoomVideo = (url, filename) => {
-  const file = fs.createWriteStream(filename);
+  const downloadsFolder = path.join(__dirname, 'Downloads');
+
+  // Create the "Downloads" folder if it doesn't exist
+  if (!fs.existsSync(downloadsFolder)) {
+    fs.mkdirSync(downloadsFolder);
+  }
+
+  const outputPath = path.join(downloadsFolder, filename);
+  const file = fs.createWriteStream(outputPath);
+
   https.get(url, function(response) {
     response.pipe(file);
   });
 };
+
 
 const extractId = (url) => {
   url = url.split('?')[0];
