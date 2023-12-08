@@ -4,10 +4,8 @@ import fs from 'fs';
 import https from 'https';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import path from 'path';
+import path, { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -59,22 +57,27 @@ const fetchLoomDownloadUrl = async (id) => {
   return data.url;
 };
 
-const downloadLoomVideo = (url, filename) => {
-  const downloadsFolder = path.join(__dirname, 'Downloads');
+const downloadLoomVideo = async (url, outputPath) => {
+  try {
+    const outputDir = path.dirname(outputPath);
 
-  // Create the "Downloads" folder if it doesn't exist
-  if (!fs.existsSync(downloadsFolder)) {
-    fs.mkdirSync(downloadsFolder);
+    // Create the output directory if it doesn't exist
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    const file = fs.createWriteStream(outputPath);
+    https.get(url, function (response) {
+      response.pipe(file);
+    });
+
+    file.on('error', (error) => {
+      console.error(`Error while writing to file: ${error.message}`);
+    });
+  } catch (error) {
+    console.error(`Error during download process: ${error.message}`);
   }
-
-  const outputPath = path.join(downloadsFolder, filename);
-  const file = fs.createWriteStream(outputPath);
-
-  https.get(url, function(response) {
-    response.pipe(file);
-  });
 };
-
 
 const extractId = (url) => {
   url = url.split('?')[0];
@@ -89,20 +92,18 @@ const downloadFromList = async () => {
   const filePath = path.resolve(argv.list);
   const fileContent = fs.readFileSync(filePath, 'utf8');
   const urls = fileContent.split(/\r?\n/);
-  const outputDirectory = argv.out || '.';
+
+  // Set the output directory to the specified path or default to 'Downloads'
+  const outputDirectory = argv.out ? path.resolve(argv.out) : path.join(__dirname, 'Downloads');
 
   for (let i = 0; i < urls.length; i++) {
     if (urls[i].trim()) {
       const id = extractId(urls[i]);
       const url = await fetchLoomDownloadUrl(id);
-      let filename;
-      if (argv.prefix) {
-        filename = path.join(outputDirectory, `${argv.prefix}-${i + 1}.mp4`);
-      } else {
-        filename = path.join(outputDirectory, `${id}.mp4`);
-      }
-      console.log(`Downloading video ${id} and saving to ${filename}`);
-      downloadLoomVideo(url, filename);
+      let filename = argv.prefix ? `${argv.prefix}-${i + 1}.mp4` : `${id}.mp4`;
+      let outputPath = path.join(outputDirectory, filename);
+      console.log(`Downloading video ${id} and saving to ${outputPath}`);
+      downloadLoomVideo(url, outputPath);
       if (argv.timeout) {
         console.log(`Waiting for ${argv.timeout} milliseconds before the next download...`);
         await delay(argv.timeout);

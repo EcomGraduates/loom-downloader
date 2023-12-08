@@ -58,6 +58,7 @@ node loom-dl.js --list path/to/urls.txt --prefix download --out path/to/output
 ```
 
 This will save the videos with the specified prefix "download" and an incremented number in the given output directory. download-1.mp4 download-2.mp4
+**If no output path is specified it will default to Downloads folder**
 
 ### Avoid rate limiting
 
@@ -84,6 +85,10 @@ follow the same commands as above but replace node loom-dl.js with loom-dl
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+
+## Contributors
+
+- [lestercoyoyjr](https://github.com/lestercoyoyjr) for [A way to make videos downloaded be downloaded in a specific folder for downloads.](https://github.com/EcomGraduates/loom-downloader/pull/4)
 
 ## License
 
