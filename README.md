@@ -90,6 +90,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 - [lestercoyoyjr](https://github.com/lestercoyoyjr) for [A way to make videos downloaded be downloaded in a specific folder for downloads.](https://github.com/EcomGraduates/loom-downloader/pull/4)
 
+-[werkamsus](https://github.com/werkamsus) for [add resume functionality](https://github.com/EcomGraduates/loom-downloader/pull/6)
 ## License
 
 This project is open source and available under the [MIT License](https://choosealicense.com/licenses/mit/).
