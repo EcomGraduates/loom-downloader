@@ -1,3 +1,8 @@
 node_modules
+.DS_Store
 
 Downloads
+
+output
+downloaded.log
+urls.txt
