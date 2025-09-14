@@ -135,7 +135,7 @@ const downloadFromList = async () => {
   const filePath = path.resolve(argv.list);
   const fileContent = await fsPromises.readFile(filePath, 'utf8');
   const urls = fileContent.split(/\r?\n/).filter(url => url.trim() && !downloadedSet.has(url));
-  const outputDirectory = argv.out ? path.resolve(argv.out) : path.join(__dirname, 'Downloads');
+  const outputDirectory = argv.out ? path.resolve(argv.out) : path.join(__dirname, 'downloads');
 
   // Define the download task for each URL, including a delay after each download
   const downloadTask = async (url) => {
