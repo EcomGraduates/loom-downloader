@@ -12,9 +12,13 @@ Loom Video Downloader makes it easy to download videos from Loom by simply provi
 
 - 🎯 **Single Video Download** - Download any Loom video with just the URL
 - 📋 **Batch Download** - Process multiple videos from a text file
-- 📁 **Custom Output** - Specify output directory and filename
+- � **Progress Bars** - Real-time download progress with ETA
+- ⏯️ **Resume Downloads** - Smart resume functionality for interrupted downloads
+- 🎥 **Quality Selection** - Choose video quality with automatic analysis
+- �📁 **Custom Output** - Specify output directory and filename
 - 🏷️ **Filename Prefix** - Add custom prefixes for batch downloads
 - ⏱️ **Rate Limiting** - Built-in timeout to avoid getting blocked
+- ⚙️ **Configuration File** - Save default settings for consistent usage
 - 🚀 **Easy to Use** - Simple command-line interface
 
 ## 🚀 Getting Started
@@ -49,6 +53,7 @@ npm install
 | Package | Purpose |
 |---------|---------|
 | [`axios`](https://www.npmjs.com/package/axios) | 🌐 Promise-based HTTP client for API requests |
+| [`cli-progress`](https://www.npmjs.com/package/cli-progress) | 📊 Beautiful progress bars for terminal |
 | [`fs`](https://nodejs.org/api/fs.html) | 📁 Node.js file system operations |
 | [`https`](https://nodejs.org/api/https.html) | 🔒 HTTPS protocol support |
 | [`yargs`](https://www.npmjs.com/package/yargs) | ⚙️ Command-line argument parsing |
@@ -128,6 +133,11 @@ This adds a **5-second delay** between each download. Adjust the timeout value a
 | `--out` | `-o` | Output path/filename | `--out ./downloads/video.mp4` |
 | `--prefix` | `-p` | Filename prefix for batch | `--prefix "meeting"` |
 | `--timeout` | `-t` | Delay between downloads (ms) | `--timeout 3000` |
+| `--resume` | `-r` | Resume incomplete downloads | `--resume` or `--no-resume` |
+| `--quality` | `-q` | Video quality preference | `--quality 720p` |
+| `--save-config` | | Save current options as defaults | `--save-config --quality best` |
+| `--show-config` | | Display current configuration | `--show-config` |
+| `--reset-config` | | Reset configuration to defaults | `--reset-config` |
 
 ## 🚀 Quick Start Examples
 
@@ -144,6 +154,68 @@ loom-dl --list videos.txt --prefix "course" --out ./downloads
 # Batch download with rate limiting
 loom-dl --list videos.txt --timeout 3000 --prefix "meeting"
 ```
+
+## ⚙️ Configuration Management
+
+### 📁 Save Default Settings
+
+Save your preferred settings to avoid repeating them:
+
+```bash
+# Save preferred quality and timeout settings
+loom-dl --save-config --quality best --timeout 2000 --prefix "MyVideos_"
+
+# Now all future downloads will use these defaults
+loom-dl --url https://www.loom.com/share/abc123def456
+```
+
+### 📋 View Current Configuration
+
+Check your current default settings:
+
+```bash
+loom-dl --show-config
+```
+
+**Example output:**
+```json
+{
+  "quality": "best",
+  "resume": true,
+  "timeout": 2000,
+  "outputDir": "downloads",
+  "prefix": "MyVideos_"
+}
+```
+
+### 🔄 Reset to Defaults
+
+Reset all settings back to the original defaults:
+
+```bash
+loom-dl --reset-config
+```
+
+### 📝 Configuration File
+
+Settings are stored in `.loomrc.json` in the project directory. You can also edit this file directly:
+
+```json
+{
+  "quality": "720p",
+  "resume": true,
+  "timeout": 1000,
+  "outputDir": "downloads",
+  "prefix": ""
+}
+```
+
+**Available Settings:**
+- `quality`: Video quality preference (`auto`, `480p`, `720p`, `1080p`, `best`)
+- `resume`: Enable/disable resume functionality (`true`/`false`)
+- `timeout`: Delay between downloads in milliseconds
+- `outputDir`: Default output directory
+- `prefix`: Default filename prefix
 
 ## 🤝 Contributing
 

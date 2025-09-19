@@ -11,6 +11,62 @@ import { hideBin } from 'yargs/helpers';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Configuration file management
+const CONFIG_FILE = path.join(__dirname, '.loomrc.json');
+
+const DEFAULT_CONFIG = {
+  quality: 'auto',
+  resume: true,
+  timeout: 1000,
+  outputDir: 'downloads',
+  prefix: ''
+};
+
+const loadConfig = async () => {
+  try {
+    const configData = await fsPromises.readFile(CONFIG_FILE, 'utf8');
+    const config = JSON.parse(configData);
+    return { ...DEFAULT_CONFIG, ...config };
+  } catch (error) {
+    // Config file doesn't exist or is invalid, return defaults
+    return DEFAULT_CONFIG;
+  }
+};
+
+const saveConfig = async (config) => {
+  try {
+    const configToSave = { ...DEFAULT_CONFIG, ...config };
+    await fsPromises.writeFile(CONFIG_FILE, JSON.stringify(configToSave, null, 2), 'utf8');
+    console.log(`✅ Configuration saved to ${CONFIG_FILE}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to save configuration: ${error.message}`);
+    return false;
+  }
+};
+
+const showConfig = async () => {
+  const config = await loadConfig();
+  console.log('📋 Current Configuration:');
+  console.log(JSON.stringify(config, null, 2));
+};
+
+const resetConfig = async () => {
+  try {
+    await fsPromises.unlink(CONFIG_FILE);
+    console.log('✅ Configuration reset to defaults');
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error(`❌ Failed to reset configuration: ${error.message}`);
+    } else {
+      console.log('✅ Configuration was already at defaults');
+    }
+  }
+};
+
+// Load configuration first
+const config = await loadConfig();
+
 const argv = yargs(hideBin(process.argv))
   .option('url', {
     alias: 'u',
@@ -25,33 +81,48 @@ const argv = yargs(hideBin(process.argv))
   .option('prefix', {
     alias: 'p',
     type: 'string',
+    default: config.prefix,
     description: 'Prefix for the output filenames when downloading from a list'
   })
   .option('out', {
     alias: 'o',
     type: 'string',
+    default: config.outputDir,
     description: 'Path to output the file to or directory to output files when using --list'
   })
   .option('timeout', {
     alias: 't',
     type: 'number',
+    default: config.timeout,
     description: 'Timeout in milliseconds to wait between downloads when using --list'
   })
   .option('resume', {
     alias: 'r',
     type: 'boolean',
-    default: true,
-    description: 'Resume incomplete downloads (default: true)'
+    default: config.resume,
+    description: 'Resume incomplete downloads'
   })
   .option('quality', {
     alias: 'q',
     type: 'string',
     choices: ['auto', '480p', '720p', '1080p', 'best'],
-    default: 'auto',
-    description: 'Video quality preference (default: auto)'
+    default: config.quality,
+    description: 'Video quality preference'
+  })
+  .option('save-config', {
+    type: 'boolean',
+    description: 'Save current options as default configuration'
+  })
+  .option('show-config', {
+    type: 'boolean',
+    description: 'Display current configuration and exit'
+  })
+  .option('reset-config', {
+    type: 'boolean',
+    description: 'Reset configuration to defaults'
   })
   .check((argv) => {
-    if (!argv.url && !argv.list) {
+    if (!argv.url && !argv.list && !argv['show-config'] && !argv['reset-config'] && !argv['save-config']) {
       throw new Error('Please provide either a single video URL with --url or a list of URLs with --list to proceed');
     }
     if (argv.url && argv.list) {
@@ -65,6 +136,31 @@ const argv = yargs(hideBin(process.argv))
   .help()
   .alias('help', 'h')
   .argv;
+
+// Handle configuration management commands
+if (argv['show-config']) {
+  await showConfig();
+  process.exit(0);
+}
+
+if (argv['reset-config']) {
+  await resetConfig();
+  process.exit(0);
+}
+
+if (argv['save-config']) {
+  const configToSave = {
+    quality: argv.quality,
+    resume: argv.resume,
+    timeout: argv.timeout,
+    outputDir: argv.out || config.outputDir,
+    prefix: argv.prefix || config.prefix
+  };
+  await saveConfig(configToSave);
+  if (!argv.url && !argv.list) {
+    process.exit(0);
+  }
+}
 
 const fetchLoomDownloadUrl = async (id) => {
   const { data } = await axios.post(`https://www.loom.com/api/campaigns/sessions/${id}/transcoded-url`);
@@ -298,7 +394,8 @@ const downloadFromList = async () => {
   const filePath = path.resolve(argv.list);
   const fileContent = await fsPromises.readFile(filePath, 'utf8');
   const urls = fileContent.split(/\r?\n/).filter(url => url.trim() && !downloadedSet.has(url));
-  const outputDirectory = argv.out ? path.resolve(argv.out) : path.join(__dirname, 'Downloads');
+  const outputDir = argv.out || config.outputDir || 'downloads';
+  const outputDirectory = argv.out ? path.resolve(argv.out) : (path.isAbsolute(outputDir) ? outputDir : path.join(__dirname, outputDir));
 
   // Create multi-progress bar for batch downloads
   const multiBar = new cliProgress.MultiBar({
@@ -354,9 +451,21 @@ const downloadSingleFile = async () => {
   
   let outputPath;
   if (argv.out) {
-    outputPath = argv.out;
+    // Check if the output path is a directory or a file
+    if (fs.existsSync(argv.out) && fs.statSync(argv.out).isDirectory()) {
+      outputPath = path.join(argv.out, `${id}.mp4`);
+    } else if (path.extname(argv.out) === '') {
+      // If no extension, assume it's a directory path that needs to be created
+      fs.mkdirSync(argv.out, { recursive: true });
+      outputPath = path.join(argv.out, `${id}.mp4`);
+    } else {
+      outputPath = argv.out;
+    }
   } else {
-    const downloadsDir = path.join(__dirname, 'downloads');
+    // Use the configured output directory or default to 'downloads'
+    const outputDir = config.outputDir || 'downloads';
+    const downloadsDir = path.isAbsolute(outputDir) ? outputDir : path.join(__dirname, outputDir);
+    fs.mkdirSync(downloadsDir, { recursive: true });
     outputPath = path.join(downloadsDir, `${id}.mp4`);
   }
   
