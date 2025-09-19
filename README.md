@@ -149,7 +149,7 @@ loom-dl --list videos.txt --timeout 3000 --prefix "meeting"
 
 We welcome contributions from the community! Whether it's bug fixes, new features, documentation improvements, or any other enhancements, your help is appreciated.
 
-� **Please read our [Contributing Guide](CONTRIBUTING.md) for detailed information on:**
+🤝 **Please read our [Contributing Guide](CONTRIBUTING.md) for detailed information on:**
 - How to set up the development environment
 - Coding standards and best practices
 - How to submit pull requests

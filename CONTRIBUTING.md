@@ -208,7 +208,7 @@ Need help with your contribution? Don't hesitate to reach out:
 
 ## 📄 Code of Conduct
 
-This project follows the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/). By participating, you are expected to uphold this code.
+This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please read the full document for detailed community standards and enforcement guidelines.
 
 ### Our Pledge
 - Be respectful and inclusive
