@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import axios from 'axios';
+import cliProgress from 'cli-progress';
 import fs, { promises as fsPromises } from 'fs';
 import https from 'https';
 import path, { dirname } from 'path';
@@ -59,25 +60,60 @@ const fetchLoomDownloadUrl = async (id) => {
 
 const backoff = (retries, fn, delay = 1000) => fn().catch(err => retries > 1 && delay <= 32000 ? new Promise(resolve => setTimeout(resolve, delay)).then(() => backoff(retries - 1, fn, delay * 2)) : Promise.reject(err));
 
-const downloadLoomVideo = async (url, outputPath) => {
+const downloadLoomVideo = async (url, outputPath, progressBar = null) => {
   try {
     const outputDir = path.dirname(outputPath);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     const file = fs.createWriteStream(outputPath);
+    
     await new Promise((resolve, reject) => {
       https.get(url, function (response) {
         if (response.statusCode === 403) {
           reject(new Error('Received 403 Forbidden'));
         } else {
+          const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+          let downloadedSize = 0;
+          const startTime = Date.now();
+          
+          // Initialize progress bar if provided
+          if (progressBar && totalSize > 0) {
+            progressBar.start(totalSize, 0, {
+              speed: '0.0 MB/s',
+              eta: 'N/A'
+            });
+          }
+          
+          response.on('data', (chunk) => {
+            downloadedSize += chunk.length;
+            
+            // Update progress bar
+            if (progressBar && totalSize > 0) {
+              const elapsed = (Date.now() - startTime) / 1000; // seconds
+              const speed = downloadedSize / elapsed; // bytes per second
+              const eta = totalSize > downloadedSize ? (totalSize - downloadedSize) / speed : 0;
+              
+              progressBar.update(downloadedSize, {
+                speed: `${(speed / 1024 / 1024).toFixed(1)} MB/s`,
+                eta: eta > 0 ? `${Math.round(eta)}s` : 'N/A'
+              });
+            }
+          });
+          
           response.pipe(file);
           file.on('finish', () => {
+            if (progressBar) {
+              progressBar.stop();
+            }
             file.close();
             resolve();
           });
         }
       }).on('error', (err) => {
+        if (progressBar) {
+          progressBar.stop();
+        }
         fs.unlink(outputPath, () => { }); // Delete partial file
         reject(err);
       });
@@ -137,6 +173,18 @@ const downloadFromList = async () => {
   const urls = fileContent.split(/\r?\n/).filter(url => url.trim() && !downloadedSet.has(url));
   const outputDirectory = argv.out ? path.resolve(argv.out) : path.join(__dirname, 'Downloads');
 
+  // Create multi-progress bar for batch downloads
+  const multiBar = new cliProgress.MultiBar({
+    format: '{filename} |{bar}| {percentage}% | {value}/{total} bytes | Speed: {speed} | ETA: {eta}',
+    barCompleteChar: '\u2588',
+    barIncompleteChar: '\u2591',
+    hideCursor: true,
+    clearOnComplete: false,
+    stopOnComplete: true
+  }, cliProgress.Presets.shades_grey);
+
+  console.log(`Starting batch download of ${urls.length} videos...\n`);
+
   // Define the download task for each URL, including a delay after each download
   const downloadTask = async (url) => {
     const id = extractId(url);
@@ -145,19 +193,30 @@ const downloadFromList = async () => {
       // Modify filename to include the video ID at the end
       let filename = argv.prefix ? `${argv.prefix}-${urls.indexOf(url) + 1}-${id}.mp4` : `${id}.mp4`;
       let outputPath = path.join(outputDirectory, filename);
-      console.log(`Downloading video ${id} and saving to ${outputPath}`);
-      await backoff(5, () => downloadLoomVideo(downloadUrl, outputPath));
+      
+      // Create individual progress bar for this download
+      const progressBar = multiBar.create(100, 0, {
+        filename: filename.length > 30 ? '...' + filename.slice(-27) : filename,
+        speed: '0.0 MB/s',
+        eta: 'N/A'
+      });
+      
+      await backoff(5, () => downloadLoomVideo(downloadUrl, outputPath, progressBar));
       await appendToLogFile(url);
+      console.log(`✓ ${filename} completed`);
       console.log(`Waiting for 5 seconds before the next download...`);
       await delay(5000); // 5-second delay
     } catch (error) {
-      console.error(`Failed to download video ${id}: ${error.message}`);
+      console.error(`✗ Failed to download video ${id}: ${error.message}`);
     }
   };
 
   // Use asyncPool to control the concurrency of download tasks
   const concurrencyLimit = 5; // Adjust the concurrency limit as needed
   await asyncPool(concurrencyLimit, urls, downloadTask);
+  
+  multiBar.stop();
+  console.log('\n🎉 All downloads completed successfully!');
 };
 
 const downloadSingleFile = async () => {
@@ -173,7 +232,17 @@ const downloadSingleFile = async () => {
   }
   
   console.log(`Downloading video ${id} and saving to ${outputPath}`);
-  await downloadLoomVideo(url, outputPath);
+  
+  // Create progress bar
+  const progressBar = new cliProgress.SingleBar({
+    format: 'Download Progress |{bar}| {percentage}% | {value}/{total} bytes | Speed: {speed} | ETA: {eta}',
+    barCompleteChar: '\u2588',
+    barIncompleteChar: '\u2591',
+    hideCursor: true
+  });
+  
+  await downloadLoomVideo(url, outputPath, progressBar);
+  console.log('\nDownload completed successfully!');
 };
 
 const main = async () => {
