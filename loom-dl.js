@@ -37,6 +37,12 @@ const argv = yargs(hideBin(process.argv))
     type: 'number',
     description: 'Timeout in milliseconds to wait between downloads when using --list'
   })
+  .option('resume', {
+    alias: 'r',
+    type: 'boolean',
+    default: true,
+    description: 'Resume incomplete downloads (default: true)'
+  })
   .check((argv) => {
     if (!argv.url && !argv.list) {
       throw new Error('Please provide either a single video URL with --url or a list of URLs with --list to proceed');
@@ -60,61 +66,117 @@ const fetchLoomDownloadUrl = async (id) => {
 
 const backoff = (retries, fn, delay = 1000) => fn().catch(err => retries > 1 && delay <= 32000 ? new Promise(resolve => setTimeout(resolve, delay)).then(() => backoff(retries - 1, fn, delay * 2)) : Promise.reject(err));
 
+const getPartialFileSize = (filePath) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      return stats.size;
+    }
+    return 0;
+  } catch (error) {
+    return 0;
+  }
+};
+
 const downloadLoomVideo = async (url, outputPath, progressBar = null) => {
   try {
     const outputDir = path.dirname(outputPath);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
-    const file = fs.createWriteStream(outputPath);
+    
+    // Check for resume functionality
+    let resumeFrom = 0;
+    let file;
+    
+    if (argv.resume) {
+      resumeFrom = getPartialFileSize(outputPath);
+      if (resumeFrom > 0) {
+        console.log(`Resuming download from ${(resumeFrom / 1024 / 1024).toFixed(1)} MB...`);
+        file = fs.createWriteStream(outputPath, { flags: 'a' }); // Append mode
+      } else {
+        file = fs.createWriteStream(outputPath); // Create new file
+      }
+    } else {
+      file = fs.createWriteStream(outputPath); // Create new file (overwrite)
+    }
     
     await new Promise((resolve, reject) => {
-      https.get(url, function (response) {
+      // Set up request options with Range header for resume
+      const urlObj = new URL(url);
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET',
+        headers: {}
+      };
+      
+      // Add Range header if resuming
+      if (resumeFrom > 0) {
+        options.headers['Range'] = `bytes=${resumeFrom}-`;
+      }
+      
+      https.get(options, function (response) {
         if (response.statusCode === 403) {
           reject(new Error('Received 403 Forbidden'));
-        } else {
-          const totalSize = parseInt(response.headers['content-length'] || '0', 10);
-          let downloadedSize = 0;
-          const startTime = Date.now();
-          
-          // Initialize progress bar if provided
-          if (progressBar && totalSize > 0) {
-            progressBar.start(totalSize, 0, {
-              speed: '0.0 MB/s',
-              eta: 'N/A'
-            });
-          }
-          
-          response.on('data', (chunk) => {
-            downloadedSize += chunk.length;
-            
-            // Update progress bar
-            if (progressBar && totalSize > 0) {
-              const elapsed = (Date.now() - startTime) / 1000; // seconds
-              const speed = downloadedSize / elapsed; // bytes per second
-              const eta = totalSize > downloadedSize ? (totalSize - downloadedSize) / speed : 0;
-              
-              progressBar.update(downloadedSize, {
-                speed: `${(speed / 1024 / 1024).toFixed(1)} MB/s`,
-                eta: eta > 0 ? `${Math.round(eta)}s` : 'N/A'
-              });
-            }
-          });
-          
-          response.pipe(file);
-          file.on('finish', () => {
-            if (progressBar) {
-              progressBar.stop();
-            }
-            file.close();
-            resolve();
+        } else if (response.statusCode === 416) {
+          // Range not satisfiable - file might be already complete
+          console.log('File appears to be already complete');
+          file.close();
+          resolve();
+          return;
+        } else if (response.statusCode !== 200 && response.statusCode !== 206) {
+          reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+          return;
+        }
+        
+        // Handle both partial content (206) and full content (200)
+        const contentLength = parseInt(response.headers['content-length'] || '0', 10);
+        const totalSize = response.statusCode === 206 ? resumeFrom + contentLength : contentLength;
+        let downloadedSize = resumeFrom; // Start from resume point
+        const startTime = Date.now();
+        
+        // Initialize progress bar if provided
+        if (progressBar && totalSize > 0) {
+          progressBar.start(totalSize, downloadedSize, {
+            speed: '0.0 MB/s',
+            eta: 'N/A'
           });
         }
+        
+        response.on('data', (chunk) => {
+          downloadedSize += chunk.length;
+          
+          // Update progress bar
+          if (progressBar && totalSize > 0) {
+            const elapsed = (Date.now() - startTime) / 1000; // seconds
+            const currentSessionBytes = downloadedSize - resumeFrom;
+            const speed = elapsed > 0 ? currentSessionBytes / elapsed : 0; // bytes per second for current session
+            const eta = totalSize > downloadedSize ? (totalSize - downloadedSize) / speed : 0;
+            
+            progressBar.update(downloadedSize, {
+              speed: `${(speed / 1024 / 1024).toFixed(1)} MB/s`,
+              eta: eta > 0 ? `${Math.round(eta)}s` : 'N/A'
+            });
+          }
+        });
+        
+        response.pipe(file);
+        file.on('finish', () => {
+          if (progressBar) {
+            progressBar.stop();
+          }
+          file.close();
+          resolve();
+        });
       }).on('error', (err) => {
         if (progressBar) {
           progressBar.stop();
         }
-        fs.unlink(outputPath, () => { }); // Delete partial file
+        if (!argv.resume) {
+          fs.unlink(outputPath, () => { }); // Delete partial file only if not resuming
+        }
         reject(err);
       });
     });
