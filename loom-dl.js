@@ -135,7 +135,7 @@ const downloadFromList = async () => {
   const filePath = path.resolve(argv.list);
   const fileContent = await fsPromises.readFile(filePath, 'utf8');
   const urls = fileContent.split(/\r?\n/).filter(url => url.trim() && !downloadedSet.has(url));
-  const outputDirectory = argv.out ? path.resolve(argv.out) : path.join(__dirname, 'downloads');
+  const outputDirectory = argv.out ? path.resolve(argv.out) : path.join(__dirname, 'Downloads');
 
   // Define the download task for each URL, including a delay after each download
   const downloadTask = async (url) => {
@@ -163,9 +163,17 @@ const downloadFromList = async () => {
 const downloadSingleFile = async () => {
   const id = extractId(argv.url);
   const url = await fetchLoomDownloadUrl(id);
-  const filename = argv.out || `${id}.mp4`;
-  console.log(`Downloading video ${id} and saving to ${filename}`);
-  downloadLoomVideo(url, filename);
+  
+  let outputPath;
+  if (argv.out) {
+    outputPath = argv.out;
+  } else {
+    const downloadsDir = path.join(__dirname, 'downloads');
+    outputPath = path.join(downloadsDir, `${id}.mp4`);
+  }
+  
+  console.log(`Downloading video ${id} and saving to ${outputPath}`);
+  await downloadLoomVideo(url, outputPath);
 };
 
 const main = async () => {
