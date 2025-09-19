@@ -237,6 +237,7 @@ We appreciate all contributors who have helped improve this project:
 |-------------|--------------|
 | [@lestercoyoyjr](https://github.com/lestercoyoyjr) | 📁 [Added output folder functionality](https://github.com/EcomGraduates/loom-downloader/pull/4) |
 | [@werkamsus](https://github.com/werkamsus) | ⏯️ [Added resume functionality](https://github.com/EcomGraduates/loom-downloader/pull/6) |
+| [@juansilvadesign](https://github.com/juansilvadesign) | ⚙️ [Added configuration file support, progress bars & quality selection](https://github.com/juansilvadesign/loom-downloader/pull/X) |
 
 ## 🔒 Security
 
