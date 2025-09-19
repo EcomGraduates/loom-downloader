@@ -43,6 +43,13 @@ const argv = yargs(hideBin(process.argv))
     default: true,
     description: 'Resume incomplete downloads (default: true)'
   })
+  .option('quality', {
+    alias: 'q',
+    type: 'string',
+    choices: ['auto', '480p', '720p', '1080p', 'best'],
+    default: 'auto',
+    description: 'Video quality preference (default: auto)'
+  })
   .check((argv) => {
     if (!argv.url && !argv.list) {
       throw new Error('Please provide either a single video URL with --url or a list of URLs with --list to proceed');
@@ -62,6 +69,59 @@ const argv = yargs(hideBin(process.argv))
 const fetchLoomDownloadUrl = async (id) => {
   const { data } = await axios.post(`https://www.loom.com/api/campaigns/sessions/${id}/transcoded-url`);
   return data.url;
+};
+
+const analyzeVideoQuality = async (url) => {
+  try {
+    // Make a HEAD request to get file information
+    const response = await axios.head(url);
+    const contentLength = parseInt(response.headers['content-length'] || '0', 10);
+    const fileSizeMB = (contentLength / 1024 / 1024).toFixed(1);
+    
+    // Try to determine quality based on file size (rough estimates)
+    let estimatedQuality = 'Unknown';
+    if (contentLength > 0) {
+      if (contentLength > 50 * 1024 * 1024) { // > 50MB
+        estimatedQuality = '1080p (estimated)';
+      } else if (contentLength > 20 * 1024 * 1024) { // > 20MB
+        estimatedQuality = '720p (estimated)';
+      } else if (contentLength > 5 * 1024 * 1024) { // > 5MB
+        estimatedQuality = '480p (estimated)';
+      } else {
+        estimatedQuality = 'Low quality (estimated)';
+      }
+    }
+    
+    return {
+      fileSize: fileSizeMB,
+      estimatedQuality,
+      contentLength
+    };
+  } catch (error) {
+    return {
+      fileSize: 'Unknown',
+      estimatedQuality: 'Unknown',
+      contentLength: 0
+    };
+  }
+};
+
+const selectQualityUrl = async (id, preferredQuality) => {
+  // For now, Loom only provides one quality option
+  // But we can still analyze it and provide information
+  const url = await fetchLoomDownloadUrl(id);
+  const qualityInfo = await analyzeVideoQuality(url);
+  
+  // Future enhancement: when Loom provides multiple qualities,
+  // we can implement selection logic here
+  
+  return {
+    url,
+    selectedQuality: qualityInfo.estimatedQuality,
+    fileSize: qualityInfo.fileSize,
+    available: ['auto'], // Currently only one option available
+    requested: preferredQuality
+  };
 };
 
 const backoff = (retries, fn, delay = 1000) => fn().catch(err => retries > 1 && delay <= 32000 ? new Promise(resolve => setTimeout(resolve, delay)).then(() => backoff(retries - 1, fn, delay * 2)) : Promise.reject(err));
@@ -117,14 +177,17 @@ const downloadLoomVideo = async (url, outputPath, progressBar = null) => {
         options.headers['Range'] = `bytes=${resumeFrom}-`;
       }
       
-      https.get(options, function (response) {
+      const req = https.get(options, function (response) {
         if (response.statusCode === 403) {
           reject(new Error('Received 403 Forbidden'));
         } else if (response.statusCode === 416) {
           // Range not satisfiable - file might be already complete
           console.log('File appears to be already complete');
-          file.close();
-          resolve();
+          response.destroy(); // Destroy the response stream
+          file.end(() => {
+            // Callback ensures file is properly closed before resolving
+            resolve();
+          });
           return;
         } else if (response.statusCode !== 200 && response.statusCode !== 206) {
           reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
@@ -170,7 +233,9 @@ const downloadLoomVideo = async (url, outputPath, progressBar = null) => {
           file.close();
           resolve();
         });
-      }).on('error', (err) => {
+      });
+      
+      req.on('error', (err) => {
         if (progressBar) {
           progressBar.stop();
         }
@@ -251,7 +316,7 @@ const downloadFromList = async () => {
   const downloadTask = async (url) => {
     const id = extractId(url);
     try {
-      const downloadUrl = await fetchLoomDownloadUrl(id);
+      const qualityResult = await selectQualityUrl(id, argv.quality);
       // Modify filename to include the video ID at the end
       let filename = argv.prefix ? `${argv.prefix}-${urls.indexOf(url) + 1}-${id}.mp4` : `${id}.mp4`;
       let outputPath = path.join(outputDirectory, filename);
@@ -263,9 +328,9 @@ const downloadFromList = async () => {
         eta: 'N/A'
       });
       
-      await backoff(5, () => downloadLoomVideo(downloadUrl, outputPath, progressBar));
+      await backoff(5, () => downloadLoomVideo(qualityResult.url, outputPath, progressBar));
       await appendToLogFile(url);
-      console.log(`✓ ${filename} completed`);
+      console.log(`✓ ${filename} completed (${qualityResult.selectedQuality}, ${qualityResult.fileSize} MB)`);
       console.log(`Waiting for 5 seconds before the next download...`);
       await delay(5000); // 5-second delay
     } catch (error) {
@@ -283,7 +348,9 @@ const downloadFromList = async () => {
 
 const downloadSingleFile = async () => {
   const id = extractId(argv.url);
-  const url = await fetchLoomDownloadUrl(id);
+  
+  console.log(`Analyzing video ${id}...`);
+  const qualityResult = await selectQualityUrl(id, argv.quality);
   
   let outputPath;
   if (argv.out) {
@@ -293,6 +360,11 @@ const downloadSingleFile = async () => {
     outputPath = path.join(downloadsDir, `${id}.mp4`);
   }
   
+  console.log(`Video Quality: ${qualityResult.selectedQuality}`);
+  console.log(`File Size: ${qualityResult.fileSize} MB`);
+  if (argv.quality !== 'auto' && argv.quality !== 'best') {
+    console.log(`Note: Requested ${argv.quality} quality. Currently, Loom provides one quality per video.`);
+  }
   console.log(`Downloading video ${id} and saving to ${outputPath}`);
   
   // Create progress bar
@@ -303,7 +375,7 @@ const downloadSingleFile = async () => {
     hideCursor: true
   });
   
-  await downloadLoomVideo(url, outputPath, progressBar);
+  await downloadLoomVideo(qualityResult.url, outputPath, progressBar);
   console.log('\nDownload completed successfully!');
 };
 
