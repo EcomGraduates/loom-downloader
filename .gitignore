@@ -6,3 +6,6 @@ Downloads
 output
 downloaded.log
 urls.txt
+
+# User configuration files
+.loomrc.json

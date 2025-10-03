@@ -1,98 +1,275 @@
----
-# Loom Video Downloader
+# 🎥 Loom Video Downloader
 
-Loom Video Downloader is a simple Node.js command-line tool to download videos from loom.com. It retrieves the video download link based on the video ID in the URL and saves the video with a specified filename, a prefix for multiple files, or by default, the video ID.
+[![npm version](https://img.shields.io/npm/v/loom-dl.svg)](https://www.npmjs.com/package/loom-dl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D%2012.0.0-brightgreen.svg)](https://nodejs.org/)
 
-## Getting Started
+> 📥 A simple and powerful Node.js command-line tool to download videos from loom.com
 
-To run this tool, you need to have Node.js and npm installed on your machine.
+Loom Video Downloader makes it easy to download videos from Loom by simply providing the video URL. It supports both single video downloads and batch downloads from a list of URLs, with customizable output options and rate limiting to avoid getting blocked.
 
-### Installation
+## ✨ Features
 
-1. Clone the repo: `git clone https://github.com/EcomGraduates/loom-downloader.git`
-2. Install NPM packages: `npm install`
+- 🎯 **Single Video Download** - Download any Loom video with just the URL
+- 📋 **Batch Download** - Process multiple videos from a text file
+- � **Progress Bars** - Real-time download progress with ETA
+- ⏯️ **Resume Downloads** - Smart resume functionality for interrupted downloads
+- 🎥 **Quality Selection** - Choose video quality with automatic analysis
+- �📁 **Custom Output** - Specify output directory and filename
+- 🏷️ **Filename Prefix** - Add custom prefixes for batch downloads
+- ⏱️ **Rate Limiting** - Built-in timeout to avoid getting blocked
+- ⚙️ **Configuration File** - Save default settings for consistent usage
+- 🚀 **Easy to Use** - Simple command-line interface
 
-### Dependencies
+## 🚀 Getting Started
 
-This tool uses the following npm packages:
+### Prerequisites
 
-- `axios` - Promise based HTTP client for the browser and Node.js.
-- `fs` - File system module that allows you to work with the file system on your computer.
-- `https` - HTTPS is the HTTP protocol over TLS/SSL.
-- `yargs` - Yargs helps you build interactive command line tools, by parsing arguments and generating an elegant user interface.
+Make sure you have **Node.js 12.0.0** or higher installed on your machine.
 
-## Usage
+- [Download Node.js](https://nodejs.org/) 
 
-### Download a Single Video
+### 📦 Installation
 
-To download a single video from loom.com, run the following command, replacing `[VideoId]` with the actual video ID from the URL:
-
+#### Option 1: Global Installation (Recommended)
+```bash
+npm install -g loom-dl
 ```
+
+#### Option 2: Clone Repository
+```bash
+# Clone the repository
+git clone https://github.com/EcomGraduates/loom-downloader.git
+
+# Navigate to project directory
+cd loom-downloader
+
+# Install dependencies
+npm install
+```
+
+### 🔧 Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| [`axios`](https://www.npmjs.com/package/axios) | 🌐 Promise-based HTTP client for API requests |
+| [`cli-progress`](https://www.npmjs.com/package/cli-progress) | 📊 Beautiful progress bars for terminal |
+| [`fs`](https://nodejs.org/api/fs.html) | 📁 Node.js file system operations |
+| [`https`](https://nodejs.org/api/https.html) | 🔒 HTTPS protocol support |
+| [`yargs`](https://www.npmjs.com/package/yargs) | ⚙️ Command-line argument parsing |
+
+## 📖 Usage
+
+### 🎯 Download a Single Video
+
+Download any Loom video using its URL:
+
+```bash
 loom-dl --url https://www.loom.com/share/[VideoId]
 ```
 
-This will download the video and save it as `[VideoId].mp4`.
-
-You can specify a different output filename with the `--out` or `-o` option:
-
-```
-loom-dl --url https://www.loom.com/share/[VideoId] --out [FileName].mp4 or loom-dl --url https://www.loom.com/share/[VideoId] --out path/to/[FileName].mp4
+**💡 Example:**
+```bash
+loom-dl --url https://www.loom.com/share/abc123def456
+# Downloads as: abc123def456.mp4
 ```
 
-This will download the video and save it as `[FileName].mp4`.
+#### Custom Output Filename
 
-### Download Multiple Videos
+Specify a custom filename and location:
 
-To download multiple videos listed in a text file, use the `--list` option. Create a text file with one video URL per line and pass the file path to the script:
+```bash
+# Custom filename
+loom-dl --url https://www.loom.com/share/[VideoId] --out my-video.mp4
 
+# Custom path and filename
+loom-dl --url https://www.loom.com/share/[VideoId] --out path/to/my-video.mp4
 ```
+
+### 📋 Download Multiple Videos
+
+Process multiple videos from a text file:
+
+#### 1. Create a URL list file
+Create a text file with one Loom URL per line:
+
+```text
+# urls.txt
+https://www.loom.com/share/video1-id
+https://www.loom.com/share/video2-id
+https://www.loom.com/share/video3-id
+```
+
+#### 2. Run batch download
+```bash
 loom-dl --list path/to/urls.txt
 ```
 
-By default, each video will be saved with its video ID as the filename.
-
-You can specify a filename prefix with the `--prefix` option. The script will append an auto-incrementing number to each downloaded video:
-
-```
-loom-dl --list path/to/urls.txt --prefix download --out path/to/output
+#### 3. With custom prefix and output directory
+```bash
+loom-dl --list urls.txt --prefix "tutorial" --out ./downloads
 ```
 
-This will save the videos with the specified prefix "download" and an incremented number in the given output directory. download-1.mp4 download-2.mp4
-**If no output path is specified it will default to Downloads folder**
+**📁 Output:** `tutorial-1.mp4`, `tutorial-2.mp4`, `tutorial-3.mp4`
 
-### Avoid rate limiting
+> **📝 Note:** If no output path is specified, files will be saved to your **Downloads** folder
 
-To prevent getting firewalled or rate-limited, a timeout can be set between downloads using the `--timeout` option:
+### ⏱️ Rate Limiting
 
-```
-loom-dl --list path/to/urls.txt --prefix download --out path/to/output --timeout 5000
-```
+Prevent getting blocked by adding delays between downloads:
 
-This will add a 5-second wait time between each download. adjust as needed.
-
-### installing via NPM
-
-run npm install loom-dl in terminal
-
-```
-npm install loom-dl -g 
+```bash
+loom-dl --list urls.txt --prefix download --out ./output --timeout 5000
 ```
 
-### use command loom-dl
+This adds a **5-second delay** between each download. Adjust the timeout value as needed.
 
-follow the same commands as above but replace loom-dl with loom-dl
+## 📋 Command Reference
 
-## Contributing
+| Option | Short | Description | Example |
+|--------|-------|-------------|---------|
+| `--url` | `-u` | Single video URL | `--url https://loom.com/share/abc123` |
+| `--list` | `-l` | File with multiple URLs | `--list urls.txt` |
+| `--out` | `-o` | Output path/filename | `--out ./downloads/video.mp4` |
+| `--prefix` | `-p` | Filename prefix for batch | `--prefix "meeting"` |
+| `--timeout` | `-t` | Delay between downloads (ms) | `--timeout 3000` |
+| `--resume` | `-r` | Resume incomplete downloads | `--resume` or `--no-resume` |
+| `--quality` | `-q` | Video quality preference | `--quality 720p` |
+| `--save-config` | | Save current options as defaults | `--save-config --quality best` |
+| `--show-config` | | Display current configuration | `--show-config` |
+| `--reset-config` | | Reset configuration to defaults | `--reset-config` |
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+## 🚀 Quick Start Examples
 
-## Contributors
+```bash
+# Download single video
+loom-dl --url https://www.loom.com/share/abc123def456
 
-- [lestercoyoyjr](https://github.com/lestercoyoyjr) for [A way to make videos downloaded be downloaded in a specific folder for downloads.](https://github.com/EcomGraduates/loom-downloader/pull/4)
+# Download with custom name
+loom-dl --url https://www.loom.com/share/abc123def456 --out "my-presentation.mp4"
 
-- [werkamsus](https://github.com/werkamsus) for [add resume functionality](https://github.com/EcomGraduates/loom-downloader/pull/6)
-## License
+# Batch download with prefix
+loom-dl --list videos.txt --prefix "course" --out ./downloads
+
+# Batch download with rate limiting
+loom-dl --list videos.txt --timeout 3000 --prefix "meeting"
+```
+
+## ⚙️ Configuration Management
+
+### 📁 Save Default Settings
+
+Save your preferred settings to avoid repeating them:
+
+```bash
+# Save preferred quality and timeout settings
+loom-dl --save-config --quality best --timeout 2000 --prefix "MyVideos_"
+
+# Now all future downloads will use these defaults
+loom-dl --url https://www.loom.com/share/abc123def456
+```
+
+### 📋 View Current Configuration
+
+Check your current default settings:
+
+```bash
+loom-dl --show-config
+```
+
+**Example output:**
+```json
+{
+  "quality": "best",
+  "resume": true,
+  "timeout": 2000,
+  "outputDir": "downloads",
+  "prefix": "MyVideos_"
+}
+```
+
+### 🔄 Reset to Defaults
+
+Reset all settings back to the original defaults:
+
+```bash
+loom-dl --reset-config
+```
+
+### 📝 Configuration File
+
+Settings are stored in `.loomrc.json` in the project directory. You can also edit this file directly:
+
+```json
+{
+  "quality": "720p",
+  "resume": true,
+  "timeout": 1000,
+  "outputDir": "downloads",
+  "prefix": ""
+}
+```
+
+**Available Settings:**
+- `quality`: Video quality preference (`auto`, `480p`, `720p`, `1080p`, `best`)
+- `resume`: Enable/disable resume functionality (`true`/`false`)
+- `timeout`: Delay between downloads in milliseconds
+- `outputDir`: Default output directory
+- `prefix`: Default filename prefix
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Whether it's bug fixes, new features, documentation improvements, or any other enhancements, your help is appreciated.
+
+🤝 **Please read our [Contributing Guide](CONTRIBUTING.md) for detailed information on:**
+- How to set up the development environment
+- Coding standards and best practices
+- How to submit pull requests
+- Reporting issues and requesting features
+
+Quick start: Fork → Create branch → Make changes → Test → Submit PR
+
+## 👥 Contributors
+
+We appreciate all contributors who have helped improve this project:
+
+| Contributor | Contribution |
+|-------------|--------------|
+| [@lestercoyoyjr](https://github.com/lestercoyoyjr) | 📁 [Added output folder functionality](https://github.com/EcomGraduates/loom-downloader/pull/4) |
+| [@werkamsus](https://github.com/werkamsus) | ⏯️ [Added resume functionality](https://github.com/EcomGraduates/loom-downloader/pull/6) |
+| [@juansilvadesign](https://github.com/juansilvadesign) | ⚙️ [Added configuration file support, progress bars & quality selection](https://github.com/juansilvadesign/loom-downloader/pull/10) |
+
+## 🔒 Security
+
+Security is important to us. If you discover a security vulnerability, please report it responsibly.
+
+📋 **Please read our [Security Policy](SECURITY.md) for:**
+- How to report security vulnerabilities
+- Our response timeline and process
+- Supported versions and security updates
+- Security best practices for users
+
+🚨 **Do not report security vulnerabilities through public issues!**
+
+## 🐛 Issues & Support
+
+Found a bug or need help? We're here to assist!
+
+- 🐛 [Report a Bug](https://github.com/EcomGraduates/loom-downloader/issues/new?labels=bug)
+- 💡 [Request a Feature](https://github.com/EcomGraduates/loom-downloader/issues/new?labels=enhancement)
+- 💬 [Ask a Question](https://github.com/EcomGraduates/loom-downloader/discussions)
+- 🔒 [Report Security Issue](https://github.com/EcomGraduates/loom-downloader/security/advisories/new)
+
+## 📄 License
 
 This project is open source and available under the [MIT License](https://choosealicense.com/licenses/mit/).
 
 ---
+
+<div align="center">
+
+**⭐ If this tool helped you, please give it a star! ⭐**
+
+Made with ❤️ by the community
+
+</div>
