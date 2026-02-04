@@ -271,8 +271,35 @@ const downloadTranscript = async (transcriptUrl, outputPath) => {
   console.log(`Transcript saved to ${outputPath}`);
 };
 
+// Check if ffmpeg is available
+const checkFfmpeg = () => {
+  return new Promise((resolve) => {
+    const check = spawn('ffmpeg', ['-version']);
+    check.on('error', () => resolve(false));
+    check.on('close', (code) => resolve(code === 0));
+  });
+};
+
+const ffmpegInstallInstructions = `
+ffmpeg is required to download Loom videos (HLS streams).
+
+Install ffmpeg:
+  macOS:    brew install ffmpeg
+  Ubuntu:   sudo apt install ffmpeg
+  Windows:  winget install ffmpeg
+            -or- choco install ffmpeg
+            -or- download from https://ffmpeg.org/download.html
+
+After installing, restart your terminal and try again.`;
+
 // Download HLS stream using ffmpeg
 const downloadHlsVideo = async (m3u8Url, outputPath, credentials = null) => {
+  // Check ffmpeg availability first
+  const hasFfmpeg = await checkFfmpeg();
+  if (!hasFfmpeg) {
+    throw new Error(ffmpegInstallInstructions);
+  }
+
   const outputDir = path.dirname(outputPath);
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
@@ -342,7 +369,7 @@ const downloadHlsVideo = async (m3u8Url, outputPath, credentials = null) => {
 
     ffmpeg.on('error', (err) => {
       if (err.code === 'ENOENT') {
-        reject(new Error('ffmpeg not found. Install with: brew install ffmpeg (macOS) or apt install ffmpeg (Ubuntu)'));
+        reject(new Error(ffmpegInstallInstructions));
       } else {
         reject(err);
       }
