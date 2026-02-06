@@ -46,6 +46,9 @@ cd loom-downloader
 
 # Install dependencies
 npm install
+
+# Run the tool
+node loom-dl.js --url https://www.loom.com/share/[VideoId]
 ```
 
 ### 🔧 Dependencies
