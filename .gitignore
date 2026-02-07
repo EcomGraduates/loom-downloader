@@ -9,3 +9,6 @@ urls.txt
 
 # User configuration files
 .loomrc.json
+
+# Live Preview Files
+/backup
