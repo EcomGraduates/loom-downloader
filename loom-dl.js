@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = {
   quality: 'auto',
   resume: true,
   timeout: 1000,
-  outputDir: 'downloads',
+  outputDir: '.',  // current working directory (where command is run)
   prefix: '',
   transcript: false
 };
@@ -86,7 +86,7 @@ const argv = yargs(hideBin(process.argv))
     alias: 'o',
     type: 'string',
     default: config.outputDir,
-    description: 'Output path or directory'
+    description: 'Output file path or directory (default: current directory)'
   })
   .option('timeout', {
     alias: 't',
@@ -499,8 +499,9 @@ async function asyncPool(limit, array, fn) {
   return Promise.all(ret);
 }
 
+// Resolve output path relative to current working directory (where user runs the command)
 const getOutputPath = (id, outputDir, extension = 'mp4') => {
-  const dir = path.isAbsolute(outputDir) ? outputDir : path.join(__dirname, outputDir);
+  const dir = path.resolve(outputDir);
   fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, `${id}.${extension}`);
 };
@@ -510,12 +511,12 @@ const downloadSingleFile = async () => {
   console.log(`Analyzing video ${id}...`);
   
   const info = await fetchLoomVideoInfo(id);
-  const outputDir = argv.out || config.outputDir || 'downloads';
+  const outputDir = argv.out ?? config.outputDir ?? '.';
   
-  // Determine output path
+  // Determine output path (relative paths are from cwd)
   let videoPath;
   if (argv.out && path.extname(argv.out) !== '') {
-    videoPath = argv.out;
+    videoPath = path.resolve(argv.out);
   } else {
     videoPath = getOutputPath(id, outputDir, 'mp4');
   }
@@ -557,8 +558,9 @@ const downloadFromList = async () => {
   const filePath = path.resolve(argv.list);
   const fileContent = await fsPromises.readFile(filePath, 'utf8');
   const urls = fileContent.split(/\r?\n/).filter(url => url.trim() && !downloadedSet.has(url));
-  const outputDir = argv.out || config.outputDir || 'downloads';
-  const outputDirectory = path.isAbsolute(outputDir) ? outputDir : path.join(__dirname, outputDir);
+  const outputDir = argv.out ?? config.outputDir ?? '.';
+  const outputDirectory = path.resolve(outputDir);
+  fs.mkdirSync(outputDirectory, { recursive: true });
 
   console.log(`Starting batch download of ${urls.length} videos...\n`);
 
