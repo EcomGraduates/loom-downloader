@@ -143,6 +143,9 @@ This adds a **5-second delay** between each download. Adjust the timeout value a
 | `--reset-config` | | Reset configuration to defaults | `--reset-config` |
 | `--transcript` | | Also download transcript as JSON | `--transcript` |
 | `--transcript-only` | | Download only the transcript | `--transcript-only` |
+| `--image` | | Also download the video thumbnail (JPG) | `--image` |
+| `--gif` | | Also download the video thumbnail as GIF | `--gif` |
+| `--seek-preview` | | Also download seek preview sprite + VTT (scrubber thumbnails) | `--seek-preview` |
 | `--mcp` | | Start as MCP server (for AI assistants) | `--mcp` |
 
 ### Use as MCP server (AI assistants)
@@ -166,7 +169,7 @@ You can run the tool as an **MCP (Model Context Protocol) server** so AI assista
 
 | Tool | Description |
 |------|-------------|
-| `download_loom_video` | Download a Loom video from a share URL. Optional: `output_dir`, `with_transcript`. |
+| `download_loom_video` | Download a Loom video from a share URL. Optional: `output_dir`, `with_transcript`, `with_image`, `with_gif`, `with_seek_preview`. |
 | `get_loom_video_info` | Get video info (title, duration, transcript availability) without downloading. |
 
 **Example (AI can call):**  

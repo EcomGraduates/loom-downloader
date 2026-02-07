@@ -116,6 +116,18 @@ const argv = yargs(hideBin(process.argv))
     type: 'boolean',
     description: 'Download only the transcript (skip video)'
   })
+  .option('image', {
+    type: 'boolean',
+    description: 'Also download the video thumbnail image (JPG)'
+  })
+  .option('gif', {
+    type: 'boolean',
+    description: 'Also download the video thumbnail as GIF'
+  })
+  .option('seek-preview', {
+    type: 'boolean',
+    description: 'Also download the seek preview sprite image and VTT (for scrubber thumbnails)'
+  })
   .option('save-config', {
     type: 'boolean',
     description: 'Save current options as defaults'
@@ -225,6 +237,72 @@ const fetchLoomVideoInfo = async (id) => {
     }
   }
 
+  // Seek preview: signed URLs for sprite image and VTT (from Apollo state or HTML)
+  const seekPreview = { imageUrl: null, vttUrl: null };
+  const findUrlsInObject = (obj, predicate, found = new Set()) => {
+    if (!obj) return;
+    if (typeof obj === 'string' && predicate(obj)) { found.add(obj); return; }
+    if (Array.isArray(obj)) { obj.forEach(item => findUrlsInObject(item, predicate, found)); return; }
+    if (typeof obj === 'object') { Object.values(obj).forEach(v => findUrlsInObject(v, predicate, found)); }
+  };
+  // Apollo: look for mediametadata/seekpreview/ URLs
+  const seekSet = new Set();
+  findUrlsInObject(apolloData, (s) => typeof s === 'string' && s.includes('mediametadata/seekpreview/'), seekSet);
+  for (const u of seekSet) {
+    if (u.includes('.jpg') || u.endsWith('.jpg')) seekPreview.imageUrl = u;
+    if (u.includes('.vtt') || u.endsWith('.vtt')) seekPreview.vttUrl = u;
+  }
+  // Apollo fallback: any URL containing seekpreview and .jpg/.vtt (e.g. different path)
+  if (!seekPreview.imageUrl || !seekPreview.vttUrl) {
+    const seekSet2 = new Set();
+    findUrlsInObject(apolloData, (s) => typeof s === 'string' && /seekpreview/i.test(s) && (/\.jpg(\?|$)/.test(s) || /\.vtt(\?|$)/.test(s)), seekSet2);
+    for (const u of seekSet2) {
+      if ((u.includes('.jpg') || u.endsWith('.jpg')) && !seekPreview.imageUrl) seekPreview.imageUrl = u;
+      if ((u.includes('.vtt') || u.endsWith('.vtt')) && !seekPreview.vttUrl) seekPreview.vttUrl = u;
+    }
+  }
+  // HTML fallback: find signed seek preview URLs in raw HTML
+  if (!seekPreview.imageUrl || !seekPreview.vttUrl) {
+    const seekJpgMatch = html.match(/https:\/\/[^"'\s]*mediametadata\/seekpreview\/[^"'\s]*\.jpg[^"'\s]*/);
+    const seekVttMatch = html.match(/https:\/\/[^"'\s]*mediametadata\/seekpreview\/[^"'\s]*\.vtt[^"'\s]*/);
+    if (seekJpgMatch) seekPreview.imageUrl = seekPreview.imageUrl || seekJpgMatch[0].replace(/\\u0026/g, '&');
+    if (seekVttMatch) seekPreview.vttUrl = seekPreview.vttUrl || seekVttMatch[0].replace(/\\u0026/g, '&');
+  }
+  // GraphQL fallback: GetVideoSeekPreview returns signed VTT URL; sprite uses same path with .jpg
+  if (!seekPreview.vttUrl) {
+    try {
+      const gqlPayload = {
+        operationName: 'GetVideoSeekPreview',
+        variables: { videoId: id, trimId: null, password: null },
+        query: 'query GetVideoSeekPreview($videoId: ID!, $trimId: String, $password: String) { getVideo(id: $videoId, password: $password) { ... on RegularUserVideo { id seekPreviewCdnUrl(trimId: $trimId) __typename } __typename } }'
+      };
+      const { data: gql } = await axios.post('https://www.loom.com/graphql', gqlPayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+          'Origin': 'https://www.loom.com',
+          'Referer': shareUrl,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'apollographql-client-name': 'web',
+          'apollographql-client-version': 'ae4e8f8'
+        }
+      });
+      const cdnUrl = gql?.data?.getVideo?.seekPreviewCdnUrl;
+      if (cdnUrl && typeof cdnUrl === 'string') {
+        seekPreview.vttUrl = cdnUrl;
+        if (!seekPreview.imageUrl) {
+          seekPreview.imageUrl = cdnUrl.replace(/\.vtt(\?|$)/, '.jpg$1');
+        }
+      }
+    } catch (e) {
+      if (argv.verbose) console.warn('GetVideoSeekPreview GraphQL failed:', e.message);
+    }
+  }
+
+  // Thumbnails: public URLs, no auth
+  const thumbnailUrl = `https://cdn.loom.com/sessions/thumbnails/${id}-00001.jpg`;
+  const thumbnailGifUrl = `https://cdn.loom.com/sessions/thumbnails/${id}-00001.gif`;
+
   if (!videoInfo.url && !argv['transcript-only']) {
     // Fallback: try direct MP4 patterns
     const mp4Match = html.match(/https:\/\/cdn\.loom\.com\/sessions\/(?:transcoded|raw)\/[^"'\s\\]+\.mp4/);
@@ -241,7 +319,16 @@ const fetchLoomVideoInfo = async (id) => {
     throw new Error('Could not find video URL');
   }
 
-  return { video: videoInfo, transcript: transcriptInfo, title: videoTitle };
+  return { video: videoInfo, transcript: transcriptInfo, title: videoTitle, thumbnailUrl, thumbnailGifUrl, seekPreview };
+};
+
+// Download a URL to a file (for images, VTT, etc.)
+const downloadUrlToFile = async (url, outputPath, headers = {}) => {
+  const dir = path.dirname(outputPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const defaultHeaders = { 'Referer': 'https://www.loom.com/', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' };
+  const { data } = await axios.get(url, { responseType: 'arraybuffer', headers: { ...defaultHeaders, ...headers } });
+  await fsPromises.writeFile(outputPath, data);
 };
 
 // Download transcript JSON
@@ -472,7 +559,13 @@ const backoff = (retries, fn, delay = 1000) =>
     ? new Promise(r => setTimeout(r, delay)).then(() => backoff(retries - 1, fn, delay * 2)) 
     : Promise.reject(err));
 
-const extractId = (url) => url.split('?')[0].split('/').pop();
+// Strip backslashes that shells add when pasting URLs (e.g. \? and \=)
+const normalizeLoomUrl = (url) => (typeof url === 'string' ? url.replace(/\\/g, '') : url);
+
+const extractId = (url) => {
+  const u = normalizeLoomUrl(url);
+  return u.split('?')[0].split('/').pop() || '';
+};
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -483,7 +576,7 @@ const appendToLogFile = async (id) => {
 const readDownloadedLog = async () => {
   try {
     const data = await fsPromises.readFile(path.join(__dirname, 'downloaded.log'), 'utf8');
-    return new Set(data.split(/\r?\n/));
+    return new Set(data.split(/\r?\n/).map(normalizeLoomUrl).filter(Boolean));
   } catch {
     return new Set();
   }
@@ -534,7 +627,35 @@ const downloadSingleFile = async () => {
   } else if ((argv.transcript || argv['transcript-only']) && !info.transcript.url) {
     console.log('No transcript available for this video');
   }
-  
+
+  // Download thumbnail (JPG) if requested
+  if (argv.image && info.thumbnailUrl) {
+    const thumbPath = videoPath.replace(/\.mp4$/, '-thumbnail.jpg');
+    console.log('Downloading thumbnail...');
+    await downloadUrlToFile(info.thumbnailUrl, thumbPath);
+  }
+
+  // Download thumbnail (GIF) if requested
+  if (argv.gif && info.thumbnailGifUrl) {
+    const gifPath = videoPath.replace(/\.mp4$/, '-thumbnail.gif');
+    console.log('Downloading thumbnail GIF...');
+    await downloadUrlToFile(info.thumbnailGifUrl, gifPath);
+  }
+
+  // Download seek preview (sprite image + VTT) if requested
+  if (argv['seek-preview']) {
+    if (info.seekPreview?.imageUrl) {
+      const basePath = videoPath.replace(/\.mp4$/, '');
+      console.log('Downloading seek preview...');
+      await downloadUrlToFile(info.seekPreview.imageUrl, `${basePath}-seek-preview.jpg`);
+      if (info.seekPreview.vttUrl) {
+        await downloadUrlToFile(info.seekPreview.vttUrl, `${basePath}-seek-preview.vtt`);
+      }
+    } else {
+      console.log('Seek preview URLs not found for this video; skipping.');
+    }
+  }
+
   // Skip video if transcript-only
   if (argv['transcript-only']) {
     console.log('Done (transcript only)');
@@ -562,7 +683,7 @@ const downloadFromList = async () => {
   const downloadedSet = await readDownloadedLog();
   const filePath = path.resolve(argv.list);
   const fileContent = await fsPromises.readFile(filePath, 'utf8');
-  const urls = fileContent.split(/\r?\n/).filter(url => url.trim() && !downloadedSet.has(url));
+  const urls = fileContent.split(/\r?\n/).map(s => normalizeLoomUrl(s.trim())).filter(u => u && !downloadedSet.has(u));
   const outputDir = argv.out ?? config.outputDir ?? '.';
   const outputDirectory = path.resolve(outputDir);
   fs.mkdirSync(outputDirectory, { recursive: true });
@@ -581,11 +702,33 @@ const downloadFromList = async () => {
       if ((argv.transcript || argv['transcript-only']) && info.transcript.url) {
         await downloadTranscript(info.transcript.url, transcriptPath);
       }
+
+      // Download thumbnail (JPG) if requested
+      if (argv.image && info.thumbnailUrl) {
+        await downloadUrlToFile(info.thumbnailUrl, path.join(outputDirectory, `${filename}-thumbnail.jpg`));
+      }
+
+      // Download thumbnail (GIF) if requested
+      if (argv.gif && info.thumbnailGifUrl) {
+        await downloadUrlToFile(info.thumbnailGifUrl, path.join(outputDirectory, `${filename}-thumbnail.gif`));
+      }
+
+      // Download seek preview if requested
+      if (argv['seek-preview']) {
+        if (info.seekPreview?.imageUrl) {
+          await downloadUrlToFile(info.seekPreview.imageUrl, path.join(outputDirectory, `${filename}-seek-preview.jpg`));
+          if (info.seekPreview.vttUrl) {
+            await downloadUrlToFile(info.seekPreview.vttUrl, path.join(outputDirectory, `${filename}-seek-preview.vtt`));
+          }
+        } else if (argv.verbose) {
+          console.log(`Seek preview not found for ${filename}; skipping.`);
+        }
+      }
       
       // Skip video if transcript-only
       if (argv['transcript-only']) {
         console.log(`Done: ${filename} (transcript only)`);
-        await appendToLogFile(url);
+        await appendToLogFile(normalizeLoomUrl(url));
         return;
       }
       
@@ -597,7 +740,7 @@ const downloadFromList = async () => {
         await backoff(5, () => downloadMp4Video(info.video.url, videoPath));
       }
       
-      await appendToLogFile(url);
+      await appendToLogFile(normalizeLoomUrl(url));
       console.log(`Done: ${filename}.mp4`);
       await delay(argv.timeout || 5000);
     } catch (error) {
@@ -649,6 +792,21 @@ async function runMcpServer() {
               type: 'boolean',
               description: 'Also download the transcript as JSON',
               default: false
+            },
+            with_image: {
+              type: 'boolean',
+              description: 'Also download the video thumbnail image (JPG)',
+              default: false
+            },
+            with_gif: {
+              type: 'boolean',
+              description: 'Also download the video thumbnail as GIF',
+              default: false
+            },
+            with_seek_preview: {
+              type: 'boolean',
+              description: 'Also download the seek preview sprite image and VTT (for scrubber thumbnails)',
+              default: false
             }
           },
           required: ['url']
@@ -677,15 +835,31 @@ async function runMcpServer() {
         const url = safeArgs.url;
         const outputDir = path.resolve(safeArgs.output_dir ?? '.');
         const withTranscript = !!safeArgs.with_transcript;
+        const withImage = !!safeArgs.with_image;
+        const withGif = !!safeArgs.with_gif;
+        const withSeekPreview = !!safeArgs.with_seek_preview;
         if (!url) throw new Error('url is required');
 
         const id = extractId(url);
         const info = await fetchLoomVideoInfo(id);
         const videoPath = getOutputPath(id, outputDir, 'mp4');
         const transcriptPath = videoPath.replace(/\.mp4$/, '.transcript.json');
+        const basePath = videoPath.replace(/\.mp4$/, '');
 
-        if (withTranscript && info.transcript.url) {
+        if (withTranscript && info.transcript?.url) {
           await downloadTranscript(info.transcript.url, transcriptPath);
+        }
+        if (withImage && info.thumbnailUrl) {
+          await downloadUrlToFile(info.thumbnailUrl, `${basePath}-thumbnail.jpg`);
+        }
+        if (withGif && info.thumbnailGifUrl) {
+          await downloadUrlToFile(info.thumbnailGifUrl, `${basePath}-thumbnail.gif`);
+        }
+        if (withSeekPreview && info.seekPreview?.imageUrl) {
+          await downloadUrlToFile(info.seekPreview.imageUrl, `${basePath}-seek-preview.jpg`);
+          if (info.seekPreview.vttUrl) {
+            await downloadUrlToFile(info.seekPreview.vttUrl, `${basePath}-seek-preview.vtt`);
+          }
         }
 
         if (info.video.type === 'hls') {
@@ -694,8 +868,13 @@ async function runMcpServer() {
           await downloadMp4Video(info.video.url, videoPath);
         }
 
+        const result = { success: true, videoPath };
+        if (withTranscript) result.transcriptPath = transcriptPath;
+        if (withImage) result.thumbnailPath = `${basePath}-thumbnail.jpg`;
+        if (withGif) result.thumbnailGifPath = `${basePath}-thumbnail.gif`;
+        if (withSeekPreview) result.seekPreviewPath = `${basePath}-seek-preview.jpg`;
         return {
-          content: [{ type: 'text', text: JSON.stringify({ success: true, videoPath, transcriptPath: withTranscript ? transcriptPath : null }, null, 2) }]
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
         };
       }
 
