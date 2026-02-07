@@ -133,7 +133,12 @@ const argv = yargs(hideBin(process.argv))
     type: 'boolean',
     description: 'Enable verbose output'
   })
+  .option('mcp', {
+    type: 'boolean',
+    description: 'Start as MCP server (for AI assistants)'
+  })
   .check((argv) => {
+    if (argv.mcp) return true;
     if (!argv.url && !argv.list && !argv['show-config'] && !argv['reset-config'] && !argv['save-config']) {
       throw new Error('Please provide --url or --list');
     }
@@ -612,4 +617,123 @@ const main = async () => {
   }
 };
 
-main();
+// MCP server: expose download as a tool for AI assistants
+async function runMcpServer() {
+  const { Server } = await import('@modelcontextprotocol/sdk/server');
+  const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
+  const { ListToolsRequestSchema, CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+
+  const server = new Server(
+    { name: 'loom-downloader', version: '1.0.0' },
+    { capabilities: { tools: {} } }
+  );
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+      {
+        name: 'download_loom_video',
+        description: 'Download a Loom video (and optionally its transcript) from a share URL. Saves to the given output directory or current directory.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            url: {
+              type: 'string',
+              description: 'Loom share URL (e.g. https://www.loom.com/share/VIDEO_ID)'
+            },
+            output_dir: {
+              type: 'string',
+              description: 'Directory to save the video and transcript (default: current directory)',
+              default: '.'
+            },
+            with_transcript: {
+              type: 'boolean',
+              description: 'Also download the transcript as JSON',
+              default: false
+            }
+          },
+          required: ['url']
+        }
+      },
+      {
+        name: 'get_loom_video_info',
+        description: 'Get info about a Loom video (title, duration, whether transcript is available) without downloading.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            url: { type: 'string', description: 'Loom share URL' }
+          },
+          required: ['url']
+        }
+      }
+    ]
+  }));
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    const safeArgs = args || {};
+
+    try {
+      if (name === 'download_loom_video') {
+        const url = safeArgs.url;
+        const outputDir = path.resolve(safeArgs.output_dir ?? '.');
+        const withTranscript = !!safeArgs.with_transcript;
+        if (!url) throw new Error('url is required');
+
+        const id = extractId(url);
+        const info = await fetchLoomVideoInfo(id);
+        const videoPath = getOutputPath(id, outputDir, 'mp4');
+        const transcriptPath = videoPath.replace(/\.mp4$/, '.transcript.json');
+
+        if (withTranscript && info.transcript.url) {
+          await downloadTranscript(info.transcript.url, transcriptPath);
+        }
+
+        if (info.video.type === 'hls') {
+          await downloadHlsVideo(info.video.url, videoPath, info.video.credentials);
+        } else {
+          await downloadMp4Video(info.video.url, videoPath);
+        }
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ success: true, videoPath, transcriptPath: withTranscript ? transcriptPath : null }, null, 2) }]
+        };
+      }
+
+      if (name === 'get_loom_video_info') {
+        const url = safeArgs.url;
+        if (!url) throw new Error('url is required');
+        const id = extractId(url);
+        const info = await fetchLoomVideoInfo(id);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              id,
+              title: info.title,
+              hasTranscript: !!info.transcript?.url,
+              videoType: info.video?.type
+            }, null, 2)
+          }]
+        };
+      }
+
+      throw new Error(`Unknown tool: ${name}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { content: [{ type: 'text', text: `Error: ${msg}` }], isError: true };
+    }
+  });
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  process.stderr.write('Loom downloader MCP server running on stdio\n');
+}
+
+if (argv.mcp) {
+  runMcpServer().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+} else {
+  main();
+}

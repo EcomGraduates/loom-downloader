@@ -141,6 +141,36 @@ This adds a **5-second delay** between each download. Adjust the timeout value a
 | `--save-config` | | Save current options as defaults | `--save-config --quality best` |
 | `--show-config` | | Display current configuration | `--show-config` |
 | `--reset-config` | | Reset configuration to defaults | `--reset-config` |
+| `--transcript` | | Also download transcript as JSON | `--transcript` |
+| `--transcript-only` | | Download only the transcript | `--transcript-only` |
+| `--mcp` | | Start as MCP server (for AI assistants) | `--mcp` |
+
+### Use as MCP server (AI assistants)
+
+You can run the tool as an **MCP (Model Context Protocol) server** so AI assistants (e.g. Cursor, Claude Desktop) can download Loom videos for you via tools.
+
+**1. Add to your MCP config** (e.g. Cursor settings or `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "loom-downloader": {
+      "command": "npx",
+      "args": ["-y", "loom-dl@latest", "--mcp"]
+    }
+  }
+}
+```
+
+**2. Tools exposed to the AI**
+
+| Tool | Description |
+|------|-------------|
+| `download_loom_video` | Download a Loom video from a share URL. Optional: `output_dir`, `with_transcript`. |
+| `get_loom_video_info` | Get video info (title, duration, transcript availability) without downloading. |
+
+**Example (AI can call):**  
+`download_loom_video({ "url": "https://www.loom.com/share/VIDEO_ID", "with_transcript": true })`
 
 ## 🚀 Quick Start Examples
 

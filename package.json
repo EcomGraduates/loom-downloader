@@ -1,6 +1,6 @@
 {
   "name": "loom-dl",
-  "version": "1.0.8",
+  "version": "1.1.0",
   "description": "Loom Video Downloader is a simple Node.js command-line tool to download videos from loom.com. It retrieves the video download link based on the video ID in the URL and saves the video with a specified filename or, by default, the video ID.",
   "repository": {
     "type": "git",
@@ -29,6 +29,8 @@
     "fs": "^0.0.1-security",
     "https": "^1.0.0",
     "path": "^0.12.7",
-    "yargs": "^17.7.2"
+    "yargs": "^17.7.2",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.23.0"
   }
 }
