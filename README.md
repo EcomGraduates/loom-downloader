@@ -198,6 +198,95 @@ loom-dl --url https://www.loom.com/share/abc123def456 --use-title
 loom-dl --list videos.txt --out ./downloads --use-title
 ```
 
+## 🌐 Web Interface
+
+This project also includes a web-based UI for downloading Loom videos without using the command line!
+
+### 🖥️ Run Locally
+
+#### Prerequisites
+- Node.js 12.0.0 or higher
+- npm or pnpm
+
+#### Local Setup
+
+1. **Clone and install dependencies:**
+```bash
+git clone https://github.com/EcomGraduates/loom-downloader.git
+cd loom-downloader/server
+npm install
+```
+
+2. **Start the server:**
+```bash
+npm start
+```
+
+3. **Open in your browser:**
+```
+http://localhost:3000
+```
+
+4. **How to use:**
+   - Paste your Loom video URL in the input field
+   - Click "Get Download Link"
+   - The video will automatically download to your Downloads folder
+
+### ☁️ Deploy to Render (Free Tier)
+
+Deploy the web interface to Render for free hosting:
+
+#### Step 1: Prepare your repository
+Ensure the `server/` folder is at the root level with:
+- `server/server.js`
+- `server/public/index.html`
+- `server/package.json`
+
+#### Step 2: Create Render account
+1. Go to [render.com](https://render.com) and sign up for free
+2. Connect your GitHub account
+
+#### Step 3: Create a new Web Service
+1. Click "New +" → "Web Service"
+2. Select your `loom-downloader` repository
+3. Fill in the settings:
+   - **Name:** `loom-downloader`
+   - **Environment:** `Node`
+   - **Build Command:** `cd server && npm install`
+   - **Start Command:** `cd server && npm start`
+   - **Runtime:** Leave as default
+
+#### Step 4: Configure environment
+1. Make sure the server listens on the correct port (Render sets `PORT` env variable)
+2. The `server.js` file already handles this: `const PORT = process.env.PORT || 3000`
+
+#### Step 5: Deploy
+Click "Create Web Service" and wait for deployment. Once live, you'll get a URL like:
+```
+https://loom-downloader-xxxx.onrender.com
+```
+
+#### Step 6: Use your deployed version
+- Visit your Render URL in any browser
+- Paste a Loom video URL
+- Click "Get Download Link"
+- Video downloads automatically!
+
+### 📝 Notes on Render Free Tier
+
+✅ **Pros:**
+- Completely free
+- Auto-deploys on git push
+- HTTPS included
+- Suitable for personal use
+
+⚠️ **Limitations:**
+- Server spins down after 15 minutes of inactivity (first request takes ~30s)
+- Limited to 100GB bandwidth/month
+- Single instance only
+
+💡 **Tip:** The first request will be slow due to the spin-up time, but subsequent requests are fast. For production use, consider upgrading to a paid plan.
+
 ## ⚙️ Configuration Management
 
 ### 📁 Save Default Settings
@@ -280,7 +369,7 @@ We appreciate all contributors who have helped improve this project:
 |-------------|--------------|
 | [@lestercoyoyjr](https://github.com/lestercoyoyjr) | 📁 [Added output folder functionality](https://github.com/EcomGraduates/loom-downloader/pull/4) |
 | [@werkamsus](https://github.com/werkamsus) | ⏯️ [Added resume functionality](https://github.com/EcomGraduates/loom-downloader/pull/6) |
-| [@juansilvadesign](https://github.com/juansilvadesign) | ⚙️ [Added configuration file support, progress bars & quality selection](https://github.com/juansilvadesign/loom-downloader/pull/10) |
+| [@juansilvadesign](https://github.com/juansilvadesign) | ⚙️ [Added configuration file support, progress bars & quality selection](https://github.com/EcomGraduates/loom-downloader/pull/10) |
 
 ## 🔒 Security
 
